@@ -15,11 +15,13 @@ limitations under the License.
 
 package com.example.android.tflitecamerademo;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.DialogFragment;
 import android.app.Fragment;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageInfo;
@@ -42,10 +44,13 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.ImageReader;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v13.app.FragmentCompat;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.util.Size;
@@ -56,12 +61,21 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.Random;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -77,12 +91,15 @@ public class Camera2BasicFragment extends Fragment
   private static final String HANDLE_THREAD_NAME = "CameraBackground";
 
   private static final int PERMISSIONS_REQUEST_CODE = 1;
+    private int REQUEST_ID_WRITE_EXTERNAL_STORAGE = 30000;
 
   private final Object lock = new Object();
   private boolean runClassifier = false;
   private boolean checkedPermissions = false;
   private TextView textView;
   private ImageClassifier classifier;
+
+  File galleryFolder;
 
   /** Max preview width that is guaranteed by Camera2 API */
   private static final int MAX_PREVIEW_WIDTH = 1920;
@@ -94,7 +111,7 @@ public class Camera2BasicFragment extends Fragment
    * {@link TextureView.SurfaceTextureListener} handles several lifecycle events on a {@link
    * TextureView}.
    */
-  private final TextureView.SurfaceTextureListener surfaceTextureListener =
+  private final TextureView.SurfaceTextureListener surfaceTextueListener =
       new TextureView.SurfaceTextureListener() {
 
         @Override
@@ -115,6 +132,7 @@ public class Camera2BasicFragment extends Fragment
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture texture) {}
       };
+
 
   /** ID of the current {@link CameraDevice}. */
   private String cameraId;
@@ -204,15 +222,7 @@ public class Camera2BasicFragment extends Fragment
    */
   private void showToast(final String text) {
     final Activity activity = getActivity();
-    if (activity != null) {
-      activity.runOnUiThread(
-          new Runnable() {
-            @Override
-            public void run() {
-              textView.setText(text);
-            }
-          });
-    }
+    if (activity != null) activity.runOnUiThread(() -> textView.setText(text));
   }
 
   /**
@@ -287,8 +297,8 @@ public class Camera2BasicFragment extends Fragment
   /** Connect the buttons to their event handler. */
   @Override
   public void onViewCreated(final View view, Bundle savedInstanceState) {
-    textureView = (AutoFitTextureView) view.findViewById(R.id.texture);
-    textView = (TextView) view.findViewById(R.id.text);
+    textureView =  view.findViewById(R.id.texture);
+    textView =  view.findViewById(R.id.text);
   }
 
   /** Load the model and labels. */
@@ -315,7 +325,7 @@ public class Camera2BasicFragment extends Fragment
     if (textureView.isAvailable()) {
       openCamera(textureView.getWidth(), textureView.getHeight());
     } else {
-      textureView.setSurfaceTextureListener(surfaceTextureListener);
+      textureView.setSurfaceTextureListener(surfaceTextueListener);
     }
   }
 
@@ -497,6 +507,10 @@ public class Camera2BasicFragment extends Fragment
   public void onRequestPermissionsResult(
       int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+      if (requestCode == REQUEST_ID_WRITE_EXTERNAL_STORAGE && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+          takePhoto();
+      }
   }
 
   /** Closes the current {@link CameraDevice}. */
@@ -661,6 +675,9 @@ public class Camera2BasicFragment extends Fragment
     Bitmap bitmap =
         textureView.getBitmap(ImageClassifier.DIM_IMG_SIZE_X, ImageClassifier.DIM_IMG_SIZE_Y);
     String textToShow = classifier.classifyFrame(bitmap);
+    if(textToShow.contains("evidencia")){
+        takePhoto();
+    }
     bitmap.recycle();
     showToast(textToShow);
   }
@@ -696,13 +713,98 @@ public class Camera2BasicFragment extends Fragment
           .setMessage(getArguments().getString(ARG_MESSAGE))
           .setPositiveButton(
               android.R.string.ok,
-              new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialogInterface, int i) {
-                  activity.finish();
-                }
-              })
+                  (dialogInterface, i) -> activity.finish())
           .create();
     }
   }
+
+
+  private void takePhoto(){
+    createImageGallery();
+    FileOutputStream outputPhoto = null;
+    try {
+      outputPhoto = new FileOutputStream(createImageFile(galleryFolder));
+        textureView.getBitmap()
+              .compress(Bitmap.CompressFormat.JPEG, 100, outputPhoto);
+    } catch (Exception e) {
+      e.printStackTrace();
+    } finally {
+      try {
+        if (outputPhoto != null) {
+          outputPhoto.close();
+
+            String path = galleryFolder.getPath();
+            saveToMediaStore(getActivity(), path);
+        }
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+
+  }
+
+
+  private void createImageGallery() {
+      int ExtstorePermission = ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.WRITE_EXTERNAL_STORAGE);
+      List<String> listPermissionsNeeded = new ArrayList<>();
+
+      if (ExtstorePermission != PackageManager.PERMISSION_GRANTED) {
+          listPermissionsNeeded.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+      }
+
+      if (!listPermissionsNeeded.isEmpty()) {
+          ActivityCompat.requestPermissions(getActivity(), listPermissionsNeeded.toArray(new String[listPermissionsNeeded.size()]), REQUEST_ID_WRITE_EXTERNAL_STORAGE);
+      }
+      else{
+          File storageDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
+          galleryFolder = new File(storageDirectory + File.separator + "recibos");
+          if (!galleryFolder.exists()) {
+              boolean wasCreated = galleryFolder.mkdirs();
+              if (!wasCreated) {
+                  Log.e("CapturedImages", "Failed to create directory");
+              }
+          }
+      }
+  }
+
+
+  private File createImageFile(File galleryFolder) throws IOException {
+      // Se obtiene un nombre aleatorio y se construye el File
+      String fileName = getRandomFileName("jpg");
+      String filePath = galleryFolder + File.separator + fileName;
+     return new File(filePath);
+  }
+
+
+    private static String getRandomFileName(String extension) {
+        Random random = new Random();
+
+        byte[] fileNameBytes = new byte[8];
+        random.nextBytes(fileNameBytes);
+        long fileNameInteger = ByteBuffer.wrap(fileNameBytes).getLong();
+        String fileName = Long.toHexString(fileNameInteger);
+        fileName = fileName + "." + extension;
+
+        return fileName;
+    }
+
+
+    /**
+     * Guarda la imagen en el MediaStore, con el fin de que pueda ser vista por la galería del dispositivo
+     *
+     * @param context El contexto de la aplicación
+     * @param path    La ruta en donde está el archivo. Esta ruta debe ser pública.
+     */
+    private static void saveToMediaStore(Context context, String path) {
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis());
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+        values.put(MediaStore.MediaColumns.DATA, path);
+
+        context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+    }
+
+
+
+
 }
