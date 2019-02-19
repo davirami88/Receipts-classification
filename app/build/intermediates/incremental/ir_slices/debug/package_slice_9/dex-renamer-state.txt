@@ -1,4 +1,4 @@
-#Tue Feb 19 12:19:42 COT 2019
+#Tue Feb 19 14:15:52 COT 2019
 base.0=/Users/user/Documents/MU/recibos/app/build/intermediates/transforms/dexMerger/debug/9
 path.0=classes.dex
 renamed.0=classes.dex

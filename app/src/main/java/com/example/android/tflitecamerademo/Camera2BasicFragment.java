@@ -752,24 +752,12 @@ public class Camera2BasicFragment extends Fragment
 
 
   private void createImageGallery() {
-      int ExtstorePermission = ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.WRITE_EXTERNAL_STORAGE);
-      List<String> listPermissionsNeeded = new ArrayList<>();
-
-      if (ExtstorePermission != PackageManager.PERMISSION_GRANTED) {
-          listPermissionsNeeded.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-      }
-
-      if (!listPermissionsNeeded.isEmpty()) {
-          ActivityCompat.requestPermissions(getActivity(), listPermissionsNeeded.toArray(new String[listPermissionsNeeded.size()]), REQUEST_ID_WRITE_EXTERNAL_STORAGE);
-      }
-      else{
-          File storageDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-          galleryFolder = new File(storageDirectory + File.separator + "recibos");
-          if (!galleryFolder.exists()) {
-              boolean wasCreated = galleryFolder.mkdirs();
-              if (!wasCreated) {
-                  Log.e("CapturedImages", "Failed to create directory");
-              }
+      File storageDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
+      galleryFolder = new File(storageDirectory + File.separator + "recibos");
+      if (!galleryFolder.exists()) {
+          boolean wasCreated = galleryFolder.mkdirs();
+          if (!wasCreated) {
+              Log.e("CapturedImages", "Failed to create directory");
           }
       }
   }
