@@ -75,6 +75,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -674,12 +675,18 @@ public class Camera2BasicFragment extends Fragment
     }
     Bitmap bitmap =
         textureView.getBitmap(ImageClassifier.DIM_IMG_SIZE_X, ImageClassifier.DIM_IMG_SIZE_Y);
-    String textToShow = classifier.classifyFrame(bitmap);
-    if(textToShow.contains("evidencia")){
-        takePhoto();
-    }
+      Map.Entry<String, Float> result = classifier.classifyFrame(bitmap);
+
+      String textToShow = "";
+      textToShow = String.format("\n%s: %4.2f",result.getKey(),result.getValue()) + textToShow;
+
     bitmap.recycle();
     showToast(textToShow);
+
+      if(result.getKey().contains("evidencia") && result.getValue() > 0.99){
+          takePhoto();
+          getActivity().finish();
+      }
   }
 
   /** Compares two {@code Size}s based on their areas. */
@@ -756,7 +763,7 @@ public class Camera2BasicFragment extends Fragment
           ActivityCompat.requestPermissions(getActivity(), listPermissionsNeeded.toArray(new String[listPermissionsNeeded.size()]), REQUEST_ID_WRITE_EXTERNAL_STORAGE);
       }
       else{
-          File storageDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
+          File storageDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
           galleryFolder = new File(storageDirectory + File.separator + "recibos");
           if (!galleryFolder.exists()) {
               boolean wasCreated = galleryFolder.mkdirs();
@@ -803,8 +810,4 @@ public class Camera2BasicFragment extends Fragment
 
         context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
     }
-
-
-
-
 }

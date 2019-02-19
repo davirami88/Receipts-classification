@@ -106,10 +106,10 @@ public class ImageClassifier {
   }
 
   /** Classifies a frame from the preview stream. */
-  String classifyFrame(Bitmap bitmap) {
+  Map.Entry<String, Float> classifyFrame(Bitmap bitmap) {
     if (tflite == null) {
       Log.e(TAG, "Image classifier has not been initialized; Skipped.");
-      return "Uninitialized Classifier.";
+      return null;//"Uninitialized Classifier.";
     }
     convertBitmapToByteBuffer(bitmap);
     // Here's where the magic happens!!!
@@ -122,9 +122,9 @@ public class ImageClassifier {
     applyFilter();
 
     // print the results
-    String textToShow = printTopKLabels();
-    textToShow = Long.toString(endTime - startTime) + "ms" + textToShow;
-    return textToShow;
+    //String textToShow = printTopKLabels();
+   // textToShow = Long.toString(endTime - startTime) + "ms" + textToShow;
+    return printTopKLabels();
   }
 
   void applyFilter(){
@@ -203,7 +203,7 @@ public class ImageClassifier {
   }
 
   /** Prints top-K labels, to be shown in UI as the results. */
-  private String printTopKLabels() {
+  private  Map.Entry<String, Float> printTopKLabels() {
     for (int i = 0; i < labelList.size(); ++i) {
       sortedLabels.add(
           new AbstractMap.SimpleEntry<>(labelList.get(i), labelProbArray[0][i]));
@@ -212,11 +212,12 @@ public class ImageClassifier {
       }
     }
     String textToShow = "";
+    Map.Entry<String, Float> label =  null;
     final int size = sortedLabels.size();
     for (int i = 0; i < size; ++i) {
-      Map.Entry<String, Float> label = sortedLabels.poll();
+      label = sortedLabels.poll();
       textToShow = String.format("\n%s: %4.2f",label.getKey(),label.getValue()) + textToShow;
     }
-    return textToShow;
+    return label;
   }
 }
